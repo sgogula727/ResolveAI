@@ -1,6 +1,6 @@
 from datetime import datetime
-from sqlaclhemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text
-from sqlachemy.orm import declarative_base, relationship
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy.orm import declarative_base, relationship
 from pgvector.sqlalchemy import Vector
 
 Base = declarative_base() #declarative base for SQLAlchemy models
@@ -40,7 +40,7 @@ class Document(Base):
     title = Column(String(255), nullable=False)
     source = Column(String(255), nullable=True)
     content = Column(Text, nullable=False)
-    metadata = Column(JSON, nullable=True)
+    doc_metadata = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     #allows to store orgiinla doc and link its chunks
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
