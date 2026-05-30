@@ -3,7 +3,9 @@ from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JS
 from sqlalchemy.orm import declarative_base, relationship
 from pgvector.sqlalchemy import Vector
 
-Base = declarative_base() #declarative base for SQLAlchemy models
+from .config import settings
+
+Base = declarative_base() #declarative base for SQLAlchemy modles
 
 
 #main user ticket record
@@ -55,7 +57,8 @@ class DocumentChunk(Base):
     #actual text fragement
     chunk_text = Column(Text, nullable=False)
     #pgvector column
-    embedding = Column(Vector(384), nullable=False) #change 384 to your embedding dimension
+    embedding_type = Vector(settings.vector_dim) if "postgresql" in settings.database_url else JSON
+    embedding = Column(embedding_type, nullable=False) #change 384 to your embedding dimension for PostgreSQL
     #relationship back to document
     document = relationship("Document", back_populates="chunks")
 
