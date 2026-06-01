@@ -10,6 +10,10 @@ from .config import settings
 from .models import Document, DocumentChunk
 
 
+def _build_api_url(base_url: str, endpoint: str) -> str:
+    return f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
+
+
 def _chunk_text(text: str, chunk_size: int = 400, chunk_overlap: int = 50) -> list[str]:
     words = text.split()
     if not words:
@@ -50,6 +54,12 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
     return dot_product / (norm_a * norm_b)
 
 
+def _normalize_embedding_model_name(model_name: str) -> str:
+    if model_name == "mistral-7b-embeddings":
+        return "mistral-embed"
+    return model_name
+
+
 class MistralEmbeddingClient:
     def __init__(
         self,
@@ -60,7 +70,9 @@ class MistralEmbeddingClient:
     ) -> None:
         self.api_key = api_key or settings.mistral_api_key
         self.base_url = base_url or settings.mistral_api_base_url
-        self.model_name = model_name or settings.mistral_embedding_model
+        self.model_name = _normalize_embedding_model_name(
+            model_name or settings.mistral_embedding_model
+        )
         self.timeout = timeout
 
         if not self.api_key:
@@ -76,12 +88,12 @@ class MistralEmbeddingClient:
         return await self._embed(texts)
 
     async def _embed(self, inputs: list[str]) -> list[list[float]]:
-        url = f"{self.base_url}/models/{self.model_name}/embeddings"
+        url = _build_api_url(self.base_url, "embeddings")
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        payload = {"input": inputs}
+        payload = {"input": inputs, "model": self.model_name}
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(url, json=payload, headers=headers)
@@ -143,10 +155,12 @@ async def search_chunks(
     if not query:
         return []
 
-    query_embedding = await _embedder().embed_query(query)
     result = await session.execute(select(DocumentChunk).order_by(DocumentChunk.id))
     chunks = result.scalars().all()
+    if not chunks:
+        return []
 
+    query_embedding = await _embedder().embed_query(query)
     scored_chunks: list[tuple[float, DocumentChunk]] = []
     for chunk in chunks:
         chunk_embedding = _normalize_embedding(chunk.embedding)

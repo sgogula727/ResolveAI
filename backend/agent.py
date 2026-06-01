@@ -11,6 +11,10 @@ from .models import AgentAction, DocumentChunk, Ticket
 from .rag import search_chunks
 
 
+def _build_api_url(base_url: str, endpoint: str) -> str:
+    return f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
+
+
 class MistralChatClient:
     def __init__(
         self,
@@ -30,15 +34,17 @@ class MistralChatClient:
             )
 
     async def generate(self, messages: list[dict[str, str]], temperature: float = 0.0) -> str:
-        url = f"{self.base_url}/models/{self.model_name}/chat/completions"
+        url = _build_api_url(self.base_url, "chat/completions")
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
         payload = {
+            "model": self.model_name,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": 1024,
+            "response_format": {"type": "json_object"},
         }
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:

@@ -1,11 +1,22 @@
 import pytest
 
-from backend.agent import ResolveAIAgent
+from backend.agent import MistralChatClient, ResolveAIAgent
 
 
 class DummyClient:
     async def generate(self, messages: list[dict[str, str]], temperature: float = 0.0) -> str:
         return '{}'
+
+
+class FakeResponse:
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict:
+        return self.payload
 
 
 def test_extract_json_valid_json() -> None:
@@ -45,3 +56,36 @@ async def test_build_context_text_without_chunks() -> None:
     context = agent._build_context_text([])
 
     assert "No knowledge base context" in context
+
+
+@pytest.mark.asyncio
+async def test_mistral_chat_client_uses_chat_completions_endpoint(monkeypatch) -> None:
+    calls = []
+
+    class FakeAsyncClient:
+        def __init__(self, timeout: int) -> None:
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback) -> None:
+            return None
+
+        async def post(self, url: str, json: dict, headers: dict) -> FakeResponse:
+            calls.append({"url": url, "json": json, "headers": headers})
+            return FakeResponse({"choices": [{"message": {"content": "{}"}}]})
+
+    monkeypatch.setattr("backend.agent.httpx.AsyncClient", FakeAsyncClient)
+
+    client = MistralChatClient(
+        api_key="test-key",
+        base_url="https://api.mistral.ai/v1/",
+        model_name="mistral-small-latest",
+    )
+    result = await client.generate([{"role": "user", "content": "Hello"}])
+
+    assert result == "{}"
+    assert calls[0]["url"] == "https://api.mistral.ai/v1/chat/completions"
+    assert calls[0]["json"]["model"] == "mistral-small-latest"
+    assert calls[0]["json"]["response_format"] == {"type": "json_object"}
